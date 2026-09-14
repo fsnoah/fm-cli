@@ -9,7 +9,7 @@ Source0:        %{name}-%{version}.tar.gz
 
 %global debug_package %{nil}
 
-BuildRequires:  golang >= 1.21
+BuildRequires:  golang >= 1.26
 Requires:       glibc
 Recommends:     libsecret
 
