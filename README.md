@@ -31,7 +31,7 @@ cd fm-cli
 go build -o fm-cli ./cmd/fm-cli
 ```
 
-Go 1.25 or newer. No C toolchain needed.
+Go 1.26 or newer. No C toolchain needed.
 
 ## Sign in
 
@@ -215,8 +215,8 @@ go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
 Releases: push a `v*` tag and GoReleaser builds the packages and tarballs.
-`./scripts/build-deb.sh`, `./scripts/build-rpm.sh` and
-`packaging/archlinux/PKGBUILD` build the packages locally.
+`goreleaser release --snapshot --clean` builds the same packages locally into
+`dist/`.
 
 ## License
 
