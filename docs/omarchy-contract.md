@@ -1,9 +1,12 @@
-# fm-cli scripting contract (v0.3)
+# fm-cli scripting contract (v0.4)
 
 This is the machine-readable surface the `ninepointlabs.fastmail` Omarchy plugin
 drives. It deliberately mirrors the shape of the HEY CLI so the plugin, which is
 adapted from 37signals' `37signals.hey` plugin, needs minimal changes. The TUI
 (`fm-cli` with no arguments, or `fm-cli tui`) is unchanged.
+
+v0.4 adds box management (`box create`, `box rename`, `box delete`), first
+shipped in fm-cli 0.3.3. Everything else is unchanged from v0.3.
 
 ## Envelope
 
@@ -37,7 +40,7 @@ fm-cli --version
 fm-cli version
 ```
 
-Prints one line: `fm-cli version 0.3.0`.
+Prints one line: `fm-cli version 0.3.3`.
 
 ## Auth
 
