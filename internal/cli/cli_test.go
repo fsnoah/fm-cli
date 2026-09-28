@@ -92,3 +92,43 @@ func TestVersionLine(t *testing.T) {
 		t.Fatalf("got %q", stdout.String())
 	}
 }
+
+func TestParseBoxFlags(t *testing.T) {
+	for _, tc := range []struct {
+		argv       []string
+		move       bool
+		moveTo     string
+		positional int
+	}{
+		{[]string{"box", "delete", "Old", "--move-to", "Archive"}, true, "Archive", 3},
+		{[]string{"box", "delete", "Old", "--move-to=Other Services/Gmail", "--json"}, true, "Other Services/Gmail", 3},
+		{[]string{"box", "delete", "Old", "--move-to", "--json"}, true, "", 3},
+		{[]string{"box", "delete", "Old", "--move-to"}, true, "", 3},
+		{[]string{"box", "delete", "Old"}, false, "", 3},
+	} {
+		a, err := Parse(tc.argv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Move != tc.move || a.MoveTo != tc.moveTo || len(a.Positional) != tc.positional {
+			t.Errorf("%v: %+v", tc.argv, a)
+		}
+	}
+	a, err := Parse([]string{"box", "create", "New", "--parent", "Other Services"})
+	if err != nil || a.Parent != "Other Services" {
+		t.Fatalf("%+v %v", a, err)
+	}
+	if _, err := Parse([]string{"box", "create", "New", "--parent"}); err == nil {
+		t.Fatal("--parent needs a value")
+	}
+}
+
+func TestBoxUsageErrors(t *testing.T) {
+	for _, argv := range [][]string{{"box", "create", "--json"}, {"box", "rename", "Old", "--json"}, {"box", "delete", "--json"}} {
+		var stdout, stderr bytes.Buffer
+		app := &App{Stdout: &stdout, Stderr: &stderr}
+		if code := app.Run(context.Background(), argv); code != ExitUsage {
+			t.Errorf("%v: exit %d, stderr %s", argv, code, stderr.String())
+		}
+	}
+}

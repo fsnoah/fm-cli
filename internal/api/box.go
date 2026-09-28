@@ -211,6 +211,66 @@ func FindBox(boxes []Box, selector string) (*Box, bool) {
 	return nil, false
 }
 
+// ResolveBox is FindBox's strict form for commands that change mailboxes: a
+// role, a mailbox id, a full path such as "Other Services/Gmail", or a leaf
+// name that only one mailbox carries. Roles, paths and names match without
+// regard to case. An ambiguous or unknown selector is an error that lists the
+// candidates.
+func ResolveBox(boxes []Box, selector string) (*Box, error) {
+	want := strings.Trim(strings.TrimSpace(selector), "/")
+	if want == "" {
+		return nil, errors.New("no mailbox given")
+	}
+	lower := strings.ToLower(want)
+	for i := range boxes {
+		if boxes[i].Kind != "" && strings.ToLower(boxes[i].Kind) == lower {
+			return &boxes[i], nil
+		}
+	}
+	for i := range boxes {
+		if boxes[i].ID == want {
+			return &boxes[i], nil
+		}
+	}
+	var byPath, byName []*Box
+	for i := range boxes {
+		if strings.ToLower(boxes[i].Path) == lower {
+			byPath = append(byPath, &boxes[i])
+		}
+		if strings.ToLower(boxes[i].Name) == lower {
+			byName = append(byName, &boxes[i])
+		}
+	}
+	for _, matches := range [][]*Box{byPath, byName} {
+		switch len(matches) {
+		case 0:
+			continue
+		case 1:
+			return matches[0], nil
+		}
+		return nil, fmt.Errorf("%q matches %d mailboxes: %s; give the full path or the id", selector, len(matches), candidateList(matches))
+	}
+	var near []*Box
+	for i := range boxes {
+		if strings.Contains(strings.ToLower(boxes[i].Path), lower) {
+			near = append(near, &boxes[i])
+		}
+	}
+	if len(near) > 0 {
+		return nil, fmt.Errorf("no mailbox matches %q; did you mean: %s", selector, candidateList(near))
+	}
+	return nil, fmt.Errorf("no mailbox matches %q; `fm-cli box list` shows them all", selector)
+}
+
+func candidateList(boxes []*Box) string {
+	out := make([]string, 0, len(boxes))
+	for _, b := range boxes {
+		out = append(out, fmt.Sprintf("%s (%s)", b.Path, b.ID))
+	}
+	sort.Strings(out)
+	return strings.Join(out, ", ")
+}
+
 // BoxPostings reads the newest threads in a box, one posting per thread, with
 // the thread's seen state computed over every email of the thread in the box.
 // The whole read is one JMAP request chained with result references.

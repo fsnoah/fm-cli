@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -116,5 +117,121 @@ func TestEventSourceURL(t *testing.T) {
 	got, err = eventSourceURL("https://example.com/events", nil, 30)
 	if err != nil || got != "https://example.com/events?closeafter=no&ping=30&types=%2A" {
 		t.Fatal(got, err)
+	}
+}
+
+func manageBoxes() []Box {
+	return []Box{
+		{ID: "P-F", Kind: "inbox", Name: "Inbox", Path: "Inbox", TotalCount: 162},
+		{ID: "P1-", Kind: "trash", Name: "Trash", Path: "Trash"},
+		{ID: "P6-", Kind: "archive", Name: "Archive", Path: "Archive"},
+		{ID: "P-Tdi", Name: "Other Services", Path: "Other Services"},
+		{ID: "Pvdk", Name: "Gmail", Path: "Other Services/Gmail", ParentID: "P-Tdi", TotalCount: 12},
+		{ID: "Pold", Name: "Old", Path: "Old"},
+		{ID: "Pog", Name: "Gmail", Path: "Old/Gmail", ParentID: "Pold"},
+		{ID: "Pibo", Name: "Finance", Path: "Finance"},
+	}
+}
+
+func TestResolveBox(t *testing.T) {
+	boxes := manageBoxes()
+	for _, tc := range []struct{ sel, id string }{
+		{"other services/gmail", "Pvdk"}, {"Other Services/Gmail", "Pvdk"}, {"OLD/GMAIL", "Pog"},
+		{"TRASH", "P1-"}, {"Pibo", "Pibo"}, {"finance", "Pibo"}, {" Finance ", "Pibo"}, {"Other Services/", "P-Tdi"},
+	} {
+		box, err := ResolveBox(boxes, tc.sel)
+		if err != nil || box.ID != tc.id {
+			t.Errorf("%q -> %v %v, want %s", tc.sel, box, err, tc.id)
+		}
+	}
+}
+
+func TestResolveBoxAmbiguousAndUnknown(t *testing.T) {
+	boxes := manageBoxes()
+	_, err := ResolveBox(boxes, "gmail")
+	if err == nil {
+		t.Fatal("gmail is ambiguous")
+	}
+	for _, want := range []string{"matches 2 mailboxes", "Old/Gmail (Pog)", "Other Services/Gmail (Pvdk)"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("ambiguity error %q lacks %q", err, want)
+		}
+	}
+	_, err = ResolveBox(boxes, "Serv")
+	if err == nil || !strings.Contains(err.Error(), "did you mean") || !strings.Contains(err.Error(), "Other Services (P-Tdi)") {
+		t.Errorf("near-miss error: %v", err)
+	}
+	_, err = ResolveBox(boxes, "zzz")
+	if err == nil || !strings.Contains(err.Error(), `no mailbox matches "zzz"`) {
+		t.Errorf("unknown error: %v", err)
+	}
+	if _, err := ResolveBox(boxes, "  "); err == nil {
+		t.Error("an empty selector should fail")
+	}
+	// Two siblings differing only in case make the path itself ambiguous.
+	boxes = append(boxes, Box{ID: "Pfin2", Name: "FINANCE", Path: "FINANCE"})
+	if _, err := ResolveBox(boxes, "finance"); err == nil || !strings.Contains(err.Error(), "matches 2 mailboxes") {
+		t.Errorf("case-twin error: %v", err)
+	}
+}
+
+func TestCheckDeletable(t *testing.T) {
+	boxes := manageBoxes()
+	find := func(id string) *Box {
+		for i := range boxes {
+			if boxes[i].ID == id {
+				return &boxes[i]
+			}
+		}
+		t.Fatalf("no %s", id)
+		return nil
+	}
+	// Roles are refused even when empty and even with --move-to.
+	for _, id := range []string{"P1-", "P6-", "P-F"} {
+		err := CheckDeletable(boxes, find(id), true)
+		if err == nil || !strings.Contains(err.Error(), "role and cannot be deleted") {
+			t.Errorf("%s: %v", id, err)
+		}
+	}
+	// Any role Fastmail reports counts, not only the ones listed in RFC 8621.
+	odd := Box{ID: "Px", Kind: "snoozed", Name: "Snoozed", Path: "Snoozed"}
+	if err := CheckDeletable(boxes, &odd, true); err == nil {
+		t.Error("snoozed should be protected")
+	}
+	err := CheckDeletable(boxes, find("P-Tdi"), true)
+	if err == nil || !strings.Contains(err.Error(), "1 subfolder") || !strings.Contains(err.Error(), "Other Services/Gmail") {
+		t.Errorf("children: %v", err)
+	}
+	err = CheckDeletable(boxes, find("Pvdk"), false)
+	if err == nil || !strings.Contains(err.Error(), "holds 12 emails") || !strings.Contains(err.Error(), "--move-to") {
+		t.Errorf("non-empty: %v", err)
+	}
+	if err := CheckDeletable(boxes, find("Pvdk"), true); err != nil {
+		t.Errorf("non-empty with --move-to: %v", err)
+	}
+	if err := CheckDeletable(boxes, find("Pibo"), false); err != nil {
+		t.Errorf("empty plain folder: %v", err)
+	}
+}
+
+func TestCheckBoxName(t *testing.T) {
+	boxes := manageBoxes()
+	if err := CheckBoxName(boxes, "P-Tdi", "gmail", ""); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("duplicate under parent: %v", err)
+	}
+	if err := CheckBoxName(boxes, "", "finance", ""); err == nil {
+		t.Error("duplicate at top level should fail")
+	}
+	if err := CheckBoxName(boxes, "Pibo", "Gmail", ""); err != nil {
+		t.Errorf("same name under another parent: %v", err)
+	}
+	if err := CheckBoxName(boxes, "P-Tdi", "GMAIL", "Pvdk"); err != nil {
+		t.Errorf("renaming to a case change of itself: %v", err)
+	}
+	if err := CheckBoxName(boxes, "", "A/B", ""); err == nil || !strings.Contains(err.Error(), "--parent") {
+		t.Errorf("slash: %v", err)
+	}
+	if err := CheckBoxName(boxes, "", "  ", ""); err == nil {
+		t.Error("empty name should fail")
 	}
 }

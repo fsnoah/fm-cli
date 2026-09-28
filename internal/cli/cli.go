@@ -71,6 +71,9 @@ type Args struct {
 	Events        string
 	Boxes         []string
 	Excludes      []string
+	Parent        string
+	MoveTo        string
+	Move          bool
 	Token         bool
 	NoBrowser     bool
 	SilentSuccess bool
@@ -140,6 +143,20 @@ func Parse(argv []string) (*Args, error) {
 				return nil, err
 			}
 			a.Excludes = append(a.Excludes, v)
+		case "--parent":
+			v, err := need()
+			if err != nil {
+				return nil, err
+			}
+			a.Parent = v
+		case "--move-to":
+			// The target is optional: --move-to alone means the Trash.
+			a.Move = true
+			a.MoveTo = value
+			if !hasValue && i+1 < len(argv) && !strings.HasPrefix(argv[i+1], "-") {
+				i++
+				a.MoveTo = argv[i]
+			}
 		case "--token":
 			a.Token = true
 		case "--no-browser":
@@ -322,8 +339,14 @@ func (app *App) dispatch(ctx context.Context, a *Args) (*Result, error) {
 				selector = rest[1]
 			}
 			return app.boxView(ctx, a, selector)
+		case "create":
+			return app.boxCreate(ctx, a, rest[1:])
+		case "rename":
+			return app.boxRename(ctx, a, rest[1:])
+		case "delete":
+			return app.boxDelete(ctx, a, rest[1:])
 		case "":
-			return nil, usageError("box needs one of: list, view")
+			return nil, usageError("box needs one of: list, view, create, rename, delete")
 		}
 		return nil, usageError("unknown command %q", "box "+sub)
 	case "inbox":
@@ -358,6 +381,13 @@ MAIL
   box list [--json]                     List mailboxes
   box view <inbox|all|role|id> [--limit N] [--account ID] [--exclude FOLDER]... [--json]
                                         "all" = newest Inbox threads plus unseen mail in every other folder
+  box create <name> [--parent BOX] [--json]
+                                        Make a mailbox, at the top level or under BOX
+  box rename <box> <new-name> [--json]  Rename a mailbox in place
+  box delete <box> [--move-to [BOX]] [--json]
+                                        Delete an empty mailbox; --move-to first moves its
+                                        email to BOX (default: Trash). Mailboxes with a
+                                        role or subfolders are never deleted.
   inbox [--limit N] [--json]            Same as box view inbox
   seen <id>... [--json]                 Mark threads or emails seen
   unseen <id>... [--json]               Mark threads or emails unseen
@@ -370,6 +400,9 @@ OTHER
 FLAGS
   --account ID|all   Select a mail account (default: the primary account)
   --json             Machine-readable output
+
+A BOX is a role (inbox, trash, ...), a mailbox id, a full path such as
+"Other Services/Gmail", or a name only one mailbox has. Case does not matter.
 `)
 }
 

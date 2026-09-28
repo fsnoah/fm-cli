@@ -133,6 +133,10 @@ fm-cli box list --json
 fm-cli box view inbox --limit 20 --json       # one posting per thread, newest first
 fm-cli box view all --json                     # Inbox plus every unseen thread in every other folder
 fm-cli box view all --exclude "Other Services" --exclude Newsletters --json
+fm-cli box create Receipts --parent Finance --json
+fm-cli box rename "Other Services/Gmail" "Old Gmail" --json
+fm-cli box delete Receipts --json              # only an empty folder without subfolders
+fm-cli box delete Receipts --move-to Archive --json   # move its mail out first; --move-to alone means Trash
 fm-cli seen <thread-or-email-id> --json
 fm-cli unseen <thread-or-email-id> --json
 fm-cli watch                                   # a JSON line per change, live
@@ -146,6 +150,16 @@ from, and lists the folders that currently have unread mail. Junk, Trash,
 Drafts, Sent, Snoozed, Scheduled and Archive are always left out; `--exclude`
 drops more, by name, path, role or id, and a parent folder takes its
 subfolders with it.
+
+**Managing folders**: `box create`, `box rename` and `box delete` name a
+folder by its full path (`Other Services/Gmail`), by a name only one folder
+has, by role or by id, without regard to case; a name two folders share is
+refused with both paths listed. `create` refuses a name the parent already
+has. `delete` never touches a folder with a role (Inbox, Archive, Trash and
+the rest) or one with subfolders, and refuses a folder that still holds mail
+unless `--move-to` is given, in which case the mail is moved there (Trash by
+default), 100 emails per request, before the empty folder is removed. Mail is
+never deleted.
 
 **`watch`** holds a JMAP push connection open. It prints `{"change":"ready"}`
 once it is caught up, one line per added, updated or deleted email with the

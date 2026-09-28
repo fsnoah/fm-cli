@@ -355,6 +355,164 @@ func (app *App) boxView(ctx context.Context, a *Args, selector string) (*Result,
 	return &Result{Data: merged, Summary: summary, Text: text.String()}, nil
 }
 
+// boxAccount opens the one account a mailbox change applies to and lists its
+// mailboxes.
+func (app *App) boxAccount(ctx context.Context, a *Args) (*api.Client, string, []api.Box, error) {
+	client, _, err := app.connect(ctx)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	accounts, err := selectAccounts(client, a.Account)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if len(accounts) != 1 {
+		return nil, "", nil, usageError("mailbox changes apply to one account; pick it with --account ID")
+	}
+	boxes, err := client.Mailboxes(ctx, accounts[0].ID)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return client, accounts[0].ID, boxes, nil
+}
+
+// resolveBox is api.ResolveBox with its failures reported as usage errors.
+func resolveBox(boxes []api.Box, selector string) (*api.Box, error) {
+	box, err := api.ResolveBox(boxes, selector)
+	if err != nil {
+		return nil, usageError("%s", err.Error())
+	}
+	return box, nil
+}
+
+func boxData(box *api.Box, path, parentID string) map[string]any {
+	return map[string]any{"id": box.ID, "name": box.Name, "path": path, "parent_id": parentID, "account_id": box.AccountID}
+}
+
+func (app *App) boxCreate(ctx context.Context, a *Args, args []string) (*Result, error) {
+	if len(args) != 1 {
+		return nil, usageError("usage: fm-cli box create <name> [--parent BOX]")
+	}
+	name := strings.TrimSpace(args[0])
+	client, account, boxes, err := app.boxAccount(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	parentID, path := "", name
+	if a.Parent != "" {
+		parent, err := resolveBox(boxes, a.Parent)
+		if err != nil {
+			return nil, err
+		}
+		parentID, path = parent.ID, parent.Path+"/"+name
+	}
+	if err := api.CheckBoxName(boxes, parentID, name, ""); err != nil {
+		return nil, usageError("%s", err.Error())
+	}
+	id, err := client.CreateBox(ctx, account, parentID, name)
+	if err != nil {
+		return nil, err
+	}
+	box := &api.Box{ID: id, Name: name, AccountID: account}
+	summary := "Created mailbox " + path
+	return &Result{Data: boxData(box, path, parentID), Summary: summary, Text: fmt.Sprintf("%s (%s)", summary, id)}, nil
+}
+
+func (app *App) boxRename(ctx context.Context, a *Args, args []string) (*Result, error) {
+	if len(args) != 2 {
+		return nil, usageError("usage: fm-cli box rename <box> <new-name>")
+	}
+	name := strings.TrimSpace(args[1])
+	client, account, boxes, err := app.boxAccount(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	box, err := resolveBox(boxes, args[0])
+	if err != nil {
+		return nil, err
+	}
+	if box.Name == name {
+		return nil, usageError("%s is already named %q", box.Path, name)
+	}
+	if err := api.CheckBoxName(boxes, box.ParentID, name, box.ID); err != nil {
+		return nil, usageError("%s", err.Error())
+	}
+	if err := client.RenameBox(ctx, account, box.ID, name); err != nil {
+		return nil, err
+	}
+	oldPath := box.Path
+	path := name
+	if i := strings.LastIndex(oldPath, "/"); i >= 0 && box.ParentID != "" {
+		path = oldPath[:i+1] + name
+	}
+	renamed := *box
+	renamed.Name = name
+	data := boxData(&renamed, path, box.ParentID)
+	data["old_name"] = box.Name
+	data["old_path"] = oldPath
+	summary := fmt.Sprintf("Renamed %s to %s", oldPath, path)
+	return &Result{Data: data, Summary: summary, Text: summary}, nil
+}
+
+func (app *App) boxDelete(ctx context.Context, a *Args, args []string) (*Result, error) {
+	if len(args) != 1 {
+		return nil, usageError("usage: fm-cli box delete <box> [--move-to [BOX]]")
+	}
+	client, account, boxes, err := app.boxAccount(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	box, err := resolveBox(boxes, args[0])
+	if err != nil {
+		return nil, err
+	}
+	if err := api.CheckDeletable(boxes, box, a.Move); err != nil {
+		return nil, usageError("%s", err.Error())
+	}
+	data := boxData(box, box.Path, box.ParentID)
+	data["deleted"] = true
+	data["moved"] = 0
+	data["moved_to"] = nil
+	summary := "Deleted mailbox " + box.Path
+	if a.Move {
+		selector := a.MoveTo
+		if strings.TrimSpace(selector) == "" {
+			selector = "trash"
+		}
+		target, err := resolveBox(boxes, selector)
+		if err != nil {
+			return nil, err
+		}
+		if target.ID == box.ID {
+			return nil, usageError("--move-to names the mailbox being deleted")
+		}
+		moved := 0
+		if box.TotalCount > 0 {
+			moved, err = client.MoveAllEmails(ctx, account, box.ID, target.ID)
+			if err != nil {
+				return nil, fmt.Errorf("moved %d email%s to %s, then stopped; %s was not deleted: %w", moved, plural(moved), target.Path, box.Path, err)
+			}
+		}
+		// Check the mailbox really is empty before destroying it.
+		after, err := client.Mailboxes(ctx, account)
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range after {
+			if b.ID == box.ID && b.TotalCount > 0 {
+				return nil, fmt.Errorf("moved %d email%s to %s, but %s still holds %d; it was not deleted", moved, plural(moved), target.Path, box.Path, b.TotalCount)
+			}
+		}
+		data["moved"] = moved
+		data["moved_to"] = map[string]any{"id": target.ID, "path": target.Path}
+		summary += fmt.Sprintf(" after moving %d email%s to %s", moved, plural(moved), target.Path)
+	}
+	if err := client.DestroyBox(ctx, account, box.ID); err != nil {
+		return nil, err
+	}
+	return &Result{Data: data, Summary: summary, Text: summary}, nil
+}
+
 func sortPostings(postings []api.Posting) {
 	for i := 1; i < len(postings); i++ {
 		for j := i; j > 0 && postings[j].ActiveAt > postings[j-1].ActiveAt; j-- {
