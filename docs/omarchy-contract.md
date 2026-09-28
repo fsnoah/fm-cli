@@ -15,7 +15,7 @@ Success, on stdout, exit 0:
 {"ok": true, "data": <payload>, "summary": "human one-liner"}
 ```
 
-Failure, on stderr, nothing on stdout, exit 1:
+Failure, on stderr, nothing on stdout, exit 1, or exit 2 when `code` is `"usage"`:
 
 ```json
 {"ok": false, "error": "message", "code": "auth|usage|network|remote|busy", "hint": "optional"}
@@ -26,6 +26,9 @@ means another `fm-cli watch` already holds the per-user watch lock. An unknown
 subcommand, flag, or `--events` value fails with `code: "usage"` and the text
 `unknown command "x"` / `unknown flag "--x"` / `unknown event "x"`, so a plugin
 can detect an old CLI.
+
+A `usage` failure exits 2, not 1: the command line or the request was refused
+before anything changed. Every other code exits 1.
 
 ## Version
 
@@ -98,6 +101,9 @@ accepted and means every listed account.
 fm-cli box list --json
 fm-cli box view <inbox|all|role|mailbox-id> [--limit N] [--account ID] [--exclude FOLDER]... --json
 fm-cli inbox [--limit N] [--account ID] --json      # alias for box view inbox
+fm-cli box create <name> [--parent BOX] --json      # see Box management below
+fm-cli box rename <box> <new-name> --json
+fm-cli box delete <box> [--move-to [BOX]] --json
 ```
 
 `box view inbox` (or any real folder):
@@ -184,6 +190,71 @@ A posting is one thread as seen from a box:
 For the `all` box, a posting's `box_*` is the folder its newest email sits
 in (the Inbox wins when a thread spans folders), and `seen`,
 `unseen_count`, `visible_entry_count` are computed across included folders.
+
+## Box management
+
+```
+fm-cli box create <name> [--parent BOX] --json
+fm-cli box rename <box> <new-name> --json
+fm-cli box delete <box> [--move-to [BOX]] --json
+```
+
+Added in 0.3.3. `<box>` and `--parent` take the same selector `box view` accepts:
+a role, a mailbox id, a full path (`Other Services/Gmail`), a leaf name only one
+mailbox has, or an id. Matching is case-insensitive. An ambiguous or unknown
+selector fails with `code: "usage"` and an error listing the candidates.
+
+`box create` files a new mailbox under `--parent`, or at the top level without it:
+
+```json
+{"ok": true, "data": {
+  "account_id": "u12345678",
+  "id": "P-X8e",
+  "name": "Receipts",
+  "parent_id": "Pibo",          // "" for a top-level mailbox
+  "path": "FInance/Receipts"
+}, "summary": "Created mailbox FInance/Receipts"}
+```
+
+A name a sibling already has is refused, so create is never a silent no-op. A name
+containing `/` is refused too, because paths are slash-joined; make a subfolder
+with `--parent` instead.
+
+`box rename` returns the same payload plus `old_name` and `old_path`, and keeps the
+mailbox's parent and children in place:
+
+```json
+{"ok": true, "data": {
+  "account_id": "u12345678", "id": "P-X8e", "name": "Receipts 2026",
+  "parent_id": "Pibo", "path": "FInance/Receipts 2026",
+  "old_name": "Receipts", "old_path": "FInance/Receipts"
+}, "summary": "Renamed FInance/Receipts to FInance/Receipts 2026"}
+```
+
+`box delete` refuses far more than it allows. Each refusal is `code: "usage"` on
+exit 2, and none of them change anything:
+
+- a mailbox with a role (`inbox`, `archive`, `drafts`, `sent`, `trash`, `junk`,
+  `scheduled`, ...), because Fastmail relies on it
+- a mailbox that still has subfolders, which the error lists
+- a mailbox that still holds mail, unless `--move-to` is given
+
+```json
+{"ok": true, "data": {
+  "account_id": "u12345678", "id": "P-X8e", "name": "Receipts",
+  "parent_id": "", "path": "Receipts",
+  "deleted": true,
+  "moved": 4,                   // 0, with "moved_to": null, when no --move-to
+  "moved_to": {"id": "P1-", "path": "Trash"}
+}, "summary": "Deleted mailbox Receipts after moving 4 emails to Trash"}
+```
+
+`--move-to` with no value means Trash. Mail is added to the target and removed only
+from the mailbox being deleted, so a message that also sits in another folder keeps
+that other folder. The mailbox is re-read after the move and destroyed only once it
+is empty; if the move stops part way, the error reports how many moved and the
+mailbox is **not** deleted. Permanent deletion of mail is not implemented and there
+is no flag for it.
 
 ## Seen
 
