@@ -35,7 +35,7 @@ func TestIsSafeLinkURL(t *testing.T) {
 		"https://example.com/a?b=1&c=%20":  true,
 		"https://example.com/\x1b]8;;evil": false,
 		"https://example.com/a b":          false,
-		"https://example.com/é":       false,
+		"https://example.com/é":            false,
 		"https://example.com/x\x07":        false,
 		"":                                 false,
 	}

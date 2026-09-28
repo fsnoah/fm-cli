@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -51,17 +50,6 @@ func NewDAVClient(email, appPassword string) (*DAVClient, error) {
 		httpClient: httpClient,
 		email:      email,
 	}, nil
-}
-
-type basicAuthTransport struct {
-	username string
-	password string
-	base     http.RoundTripper
-}
-
-func (t *basicAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.SetBasicAuth(t.username, t.password)
-	return t.base.RoundTrip(req)
 }
 
 // FetchCalendars retrieves all calendars via CalDAV

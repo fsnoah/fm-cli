@@ -285,7 +285,7 @@ func (w *watcher) catchUp(ctx context.Context, aw *accountWatch) {
 			if w.events[eventDeleted] {
 				w.emit(watchLine{
 					Change:  eventDeleted,
-					New:     boolPtr(false),
+					New:     new(false),
 					Box:     &boxRef{},
 					Posting: &api.Posting{ID: "", EmailID: string(id), AccountID: aw.info.ID},
 				})
@@ -323,7 +323,7 @@ func (w *watcher) emitEmail(aw *accountWatch, e *jmapEmail, isCreated bool) {
 		posting = api.PostingForEmail(nil, e)
 		posting.AccountID = aw.info.ID
 	}
-	w.emit(watchLine{Change: change, New: boolPtr(isNew), Box: ref, Posting: &posting})
+	w.emit(watchLine{Change: change, New: new(isNew), Box: ref, Posting: &posting})
 }
 
 type jmapEmail = emailAlias
@@ -373,5 +373,3 @@ func (w *watcher) emit(line watchLine) {
 func (w *watcher) diag(format string, args ...any) {
 	fmt.Fprintf(w.app.Stderr, "fm-cli watch: "+format+"\n", args...)
 }
-
-func boolPtr(v bool) *bool { return &v }

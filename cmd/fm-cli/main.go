@@ -465,10 +465,3 @@ func debugSession() {
 		fmt.Println("Run 'fm-cli auth dav' to store an app password for calendar/contacts.")
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

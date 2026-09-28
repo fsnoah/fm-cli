@@ -544,7 +544,7 @@ func creatorOf(from []*mail.Address) Creator {
 
 func initials(name string) string {
 	var out []rune
-	for _, word := range strings.Fields(name) {
+	for word := range strings.FieldsSeq(name) {
 		for _, r := range word {
 			if unicode.IsLetter(r) || unicode.IsDigit(r) {
 				out = append(out, unicode.ToUpper(r))

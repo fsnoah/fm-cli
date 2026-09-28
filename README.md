@@ -77,7 +77,7 @@ fm-cli tui --thread <thread-id> --remote   # tell a running app to jump there
 
 Folders, threads, reading with links you can click, reply, reply all, forward,
 compose in `$EDITOR` with contact autocomplete and a choice of sending
-identity, drafts, flags, archive, move, delete, search, a seven-day calendar
+identity, drafts, flags, archive, move, delete, search, a two-week calendar
 agenda, contacts, inline images in terminals that can draw them, and an
 offline mode that caches mail in SQLite.
 
@@ -90,6 +90,8 @@ offline mode that caches mail in SQLite.
 | `Enter` `l` | Open |
 | `h` `Esc` | Back |
 | `r` | Refresh |
+| `/` | Filter the list; from the main menu, search all mail |
+| `Ctrl+U` | Clear the filter |
 | `q` | Quit, from the main menu |
 
 | Email list | |
@@ -102,6 +104,8 @@ offline mode that caches mail in SQLite.
 
 | Reading | |
 |---|---|
+| `Space` `Ctrl+D` / `Ctrl+U` | Page down / up |
+| `g` `G` | Top, bottom |
 | `R` `A` `F` | Reply, reply all, forward |
 | `m` | Toggle full headers |
 | `b` | Open the HTML in your browser |

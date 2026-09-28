@@ -43,8 +43,7 @@ func usageError(format string, args ...any) *Error {
 
 // classify maps an arbitrary error onto an envelope error.
 func classify(err error) *Error {
-	var e *Error
-	if errors.As(err, &e) {
+	if e, ok := errors.AsType[*Error](err); ok {
 		return e
 	}
 	switch {

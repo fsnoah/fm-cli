@@ -332,7 +332,7 @@ func (c *Client) DeleteEmail(emailID string) error {
 func (c *Client) MoveEmail(emailID, fromMailboxID, toMailboxID string) error {
 	req := &jmap.Request{}
 
-	patch := map[string]interface{}{
+	patch := map[string]any{
 		"mailboxIds/" + toMailboxID: true,
 	}
 	if fromMailboxID != "" && fromMailboxID != toMailboxID {
@@ -353,7 +353,7 @@ func (c *Client) MoveEmail(emailID, fromMailboxID, toMailboxID string) error {
 func (c *Client) SetUnread(emailID string, isUnread bool) error {
 	req := &jmap.Request{}
 
-	patch := map[string]interface{}{}
+	patch := map[string]any{}
 	if isUnread {
 		patch["keywords/$seen"] = nil // Remove $seen to mark unread
 	} else {
@@ -374,7 +374,7 @@ func (c *Client) SetUnread(emailID string, isUnread bool) error {
 func (c *Client) SetFlagged(emailID string, isFlagged bool) error {
 	req := &jmap.Request{}
 
-	patch := map[string]interface{}{}
+	patch := map[string]any{}
 	if isFlagged {
 		patch["keywords/$flagged"] = true
 	} else {

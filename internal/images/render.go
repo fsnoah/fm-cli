@@ -92,8 +92,8 @@ func ExtractImagesFromHTML(html string) []ImageInfo {
 			}
 
 			// Check if it's a CID reference
-			if strings.HasPrefix(img.URL, "cid:") {
-				img.CID = strings.TrimPrefix(img.URL, "cid:")
+			if after, ok := strings.CutPrefix(img.URL, "cid:"); ok {
+				img.CID = after
 			}
 
 			images = append(images, img)
@@ -286,11 +286,4 @@ func GetCapabilityName() string {
 	default:
 		return "None"
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

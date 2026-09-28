@@ -24,7 +24,7 @@ func toModelEmail(e *email.Email) model.Email {
 	sort.Strings(boxIDs)
 	dateStr := ""
 	if e.ReceivedAt != nil {
-		dateStr = e.ReceivedAt.Format("2006-01-02 15:04")
+		dateStr = e.ReceivedAt.Local().Format("2006-01-02 15:04")
 	}
 	return model.Email{
 		ID:         string(e.ID),
