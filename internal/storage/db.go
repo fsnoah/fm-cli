@@ -293,6 +293,7 @@ func (d *DB) GetEmails(mailboxID string, offset, limit int) ([]model.Email, erro
 		if err != nil {
 			return nil, err
 		}
+		e.Date = cachedDate(e.Date)
 		json.Unmarshal([]byte(mailboxIDsJSON), &e.MailboxIDs)
 		emails = append(emails, e)
 	}
@@ -417,6 +418,9 @@ func (d *DB) GetLocalDrafts() ([]model.Email, error) {
 			return nil, err
 		}
 		e.IsDraft = true
+		if t, err := time.Parse(time.RFC3339, createdAt); err == nil {
+			createdAt = t.Local().Format(dateLayout) // CURRENT_TIMESTAMP is UTC
+		}
 		e.Date = createdAt
 		drafts = append(drafts, e)
 	}
@@ -477,4 +481,17 @@ func (d *DB) MoveEmail(emailID, fromMailboxID, toMailboxID string) error {
 	}
 
 	return tx.Commit()
+}
+
+// dateLayout is how model.Email.Date is written: local wall-clock time.
+const dateLayout = "2006-01-02 15:04"
+
+// cachedDate undoes the SQLite driver's reading of a DATETIME column: the
+// stored "2006-01-02 15:04" comes back as RFC 3339 labelled UTC, though it
+// is local wall-clock time. Anything else is returned as it is.
+func cachedDate(s string) string {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t.UTC().Format(dateLayout)
+	}
+	return s
 }

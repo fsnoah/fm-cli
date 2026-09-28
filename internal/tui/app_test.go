@@ -39,7 +39,7 @@ func sampleEmails(n int) []model.Email {
 			ID:       fmt.Sprintf("e%d", i),
 			From:     fmt.Sprintf("Sender Number %d <sender%d@example.com>", i, i),
 			Subject:  fmt.Sprintf("Subject line %d that is long enough to need truncating on a narrow terminal", i),
-			Date:     "2026-01-02 15:04",
+			Date:     []string{"2026-01-02 15:04", "2026-01-02T15:04:00Z", "not a date at all, and long"}[i%3],
 			IsUnread: i%3 == 0,
 		})
 	}

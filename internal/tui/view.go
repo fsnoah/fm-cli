@@ -165,7 +165,7 @@ func senderName(from string) string {
 // subject and date, fitted to the width.
 func (m Model) emailRow(e model.Email, selected bool) string {
 	width := m.contentWidth() - 1 // row padding
-	date := shortDate(e.Date)
+	date := api.TruncateRunes(shortDate(e.Date), 10)
 	dateWidth := 10
 	fromWidth := min(24, max(width/4, 10))
 	subjectWidth := max(width-2-2-fromWidth-2-dateWidth-1, 5)
