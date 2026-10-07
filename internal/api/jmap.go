@@ -391,7 +391,8 @@ func (c *Client) SetFlagged(emailID string, isFlagged bool) error {
 	return err
 }
 
-// GetDefaultIdentity retrieves the first available identity.
+// GetDefaultIdentity retrieves the preferred identity, falling back to the
+// first available one. FM_DEFAULT_FROM selects the preferred identity.
 func (c *Client) GetDefaultIdentity() (*identity.Identity, error) {
 	identities, err := c.GetIdentities()
 	if err != nil {
@@ -399,6 +400,9 @@ func (c *Client) GetDefaultIdentity() (*identity.Identity, error) {
 	}
 	if len(identities) == 0 {
 		return nil, fmt.Errorf("no identities found")
+	}
+	if pref := PreferredIdentity(identities); pref != nil {
+		return pref, nil
 	}
 	return identities[0], nil
 }
@@ -570,8 +574,12 @@ func (c *Client) SendEmail(existingDraftID, from, to, subject, body string) erro
 
 	// Find matching identity for the from address, or use first one
 	if from == "" {
-		from = identities[0].Email
-		identityID = identities[0].ID
+		ident := identities[0]
+		if pref := PreferredIdentity(identities); pref != nil {
+			ident = pref
+		}
+		from = ident.Email
+		identityID = ident.ID
 	} else {
 		// Find identity matching the from address
 		for _, ident := range identities {

@@ -118,7 +118,15 @@ func fetchIdentitiesCmd(client *api.Client) tea.Cmd {
 			return errorMsg(err)
 		}
 		var emails []string
+		// Put the FM_DEFAULT_FROM identity first so new composes default to it.
+		pref := api.PreferredIdentity(identities)
+		if pref != nil {
+			emails = append(emails, pref.Email)
+		}
 		for _, id := range identities {
+			if id == pref {
+				continue
+			}
 			emails = append(emails, id.Email)
 		}
 		return identitiesLoadedMsg(emails)

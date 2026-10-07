@@ -65,7 +65,10 @@ fm-cli setup                  # sign in only if signed out
 Calendar and contacts use CalDAV and CardDAV, which need a Fastmail **app
 password** with *Mail, Contacts & Calendars* access; `fm-cli auth dav` stores
 it. For headless machines, `FM_API_TOKEN`, `FM_EMAIL` and `FM_APP_PASSWORD` in
-the environment stand in for the keyring.
+the environment stand in for the keyring. Set `FM_DEFAULT_FROM` to a sending
+address (e.g. `FM_DEFAULT_FROM=noah@example.com`) to make drafts, sends and new
+composes default to that identity; if it matches no identity, the first one is
+used.
 
 ## The terminal app
 
